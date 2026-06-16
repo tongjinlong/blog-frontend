@@ -3,7 +3,8 @@ export const appEnv = {
   env: import.meta.env.VITE_APP_ENV,
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL,
   sentryDsn: import.meta.env.VITE_SENTRY_DSN,
-  enableSourcemap: import.meta.env.VITE_SOURCEMAP === "true",
+  sentryRelease: import.meta.env.VITE_SENTRY_RELEASE,
+  enableSourcemap: import.meta.env.VITE_SOURCEMAP === 'true',
   isProd: import.meta.env.PROD,
-  isDev: import.meta.env.DEV,
-};
+  isDev: import.meta.env.DEV
+}
