@@ -1,0 +1,6 @@
+{
+  "version": "0.2",
+  "language": "en,zh-CN",
+  "ignorePaths": ["node_modules", "dist", "coverage", "pnpm-lock.yaml"],
+  "words": ["pinia", "vueuse", "sourcemap", "commitlint", "stylelint", "vite"]
+}
