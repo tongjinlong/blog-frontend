@@ -102,6 +102,7 @@ http://localhost:5173
 │   ├── dependabot.yml
 │   └── workflows/
 │       ├── ci.yml
+│       ├── deploy-production.yml
 │       ├── release.yml
 │       └── release-please.yml
 ├── .husky/
@@ -232,15 +233,23 @@ docker run --rm -p 8080:80 \
   blog-frontend
 ```
 
-PR 阶段只验证 Dockerfile 是否能构建，不推送镜像。PR 合并到 `master` 后，`Release` workflow 会在 `PR Checks` 成功后顺序执行：
+PR 阶段只验证 Dockerfile 是否能构建，不推送镜像。PR 合并到 `master` 后，`Deploy Development` workflow 会在 `PR Checks` 的 `master` push 检查成功后自动执行：
 
 1. 构建并推送 GHCR 镜像
 2. 使用 Trivy 扫描镜像
 3. 通过 SSH + docker compose 自动部署 `development`
 4. 对 `development` 执行 smoke test
-5. 通过 GitHub Environment 审批后部署 `production`
-6. 对 `production` 执行 smoke test
-7. 上传 release metadata，记录 source SHA、image 和 digest
+5. 上传 development release metadata，记录 source SHA、image 和 digest
+
+`production` 部署由 `.github/workflows/deploy-production.yml` 单独处理，需要在 GitHub Actions 中手动触发 `Deploy Production` workflow：
+
+1. 选择要发布的镜像，`image_ref` 留空时默认部署 `ghcr.io/<owner>/<repo>:master`
+2. 使用 Trivy 扫描镜像
+3. 通过 SSH + docker compose 部署 `production`
+4. 对 `production` 执行 smoke test
+5. 上传 production release metadata
+
+如果需要发布精确版本，手动触发时填写 `image_ref` 为 `ghcr.io/<owner>/<repo>:<source-sha>`，并填写对应的 `source_sha`，便于 Sentry release 和发布记录对齐。
 
 服务器上的 `docker-compose.yml` 推荐使用 `IMAGE_REF` 指向精确镜像版本：
 
@@ -276,7 +285,7 @@ services:
 | var    | `API_BASE_URL`    | Runtime API 基础路径               |
 | secret | `SENTRY_DSN`      | Runtime Sentry DSN，可为空         |
 
-`APP_ENV` 由 workflow 自动设置：`development` 部署为 `development`，`production` 部署为 `production`。`production` environment 建议开启 required reviewers，用于上线前人工审批。
+`APP_ENV` 由 workflow 自动设置：`development` 部署为 `development`，`production` 部署为 `production`。`production` environment 建议开启 required reviewers，用于生产部署前人工审批。
 
 ## 发布说明
 
