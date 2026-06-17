@@ -1,90 +1,66 @@
-name: Deploy Development
+name: Deploy Production
 
 'on':
-  workflow_run:
-    workflows: ['PR Checks']
-    branches: [master]
-    types: [completed]
+  workflow_dispatch:
+    inputs:
+      image_ref:
+        description: 'GHCR image ref to deploy. Leave empty to deploy ghcr.io/<owner>/<repo>:master.'
+        required: false
+        type: string
+      source_sha:
+        description: 'Source SHA for Sentry and release metadata. Defaults to the selected ref SHA.'
+        required: false
+        type: string
 
 concurrency:
-  group: deploy-development-${{ github.event.workflow_run.head_sha }}
+  group: deploy-production
   cancel-in-progress: false
 
 permissions:
   contents: read
-  packages: write
+  packages: read
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
 
 jobs:
-  docker-image:
-    name: 01 Docker image
+  prepare:
+    name: 01 Prepare release
     runs-on: ubuntu-latest
-    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
     outputs:
-      digest: ${{ steps.build.outputs.digest }}
-      image-ref: ${{ steps.image.outputs.ref }}
+      image-ref: ${{ steps.release.outputs.image-ref }}
+      source-sha: ${{ steps.release.outputs.source-sha }}
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
-
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Prepare image metadata
-        id: image
+      - name: Prepare release metadata
+        id: release
         shell: bash
+        env:
+          INPUT_IMAGE_REF: ${{ inputs.image_ref }}
+          INPUT_SOURCE_SHA: ${{ inputs.source_sha }}
         run: |
           image_name="${IMAGE_NAME,,}"
-          image_ref="${REGISTRY}/${image_name}:${IMAGE_TAG}"
-          latest_ref="${REGISTRY}/${image_name}:master"
+          image_ref="${INPUT_IMAGE_REF}"
+          source_sha="${INPUT_SOURCE_SHA}"
+
+          if [ -z "${image_ref}" ]; then
+            image_ref="${REGISTRY}/${image_name}:master"
+          fi
+
+          if [ -z "${source_sha}" ]; then
+            source_sha="${GITHUB_SHA}"
+          fi
 
           {
-            echo "ref=${image_ref}"
-            echo "latest_ref=${latest_ref}"
+            echo "image-ref=${image_ref}"
+            echo "source-sha=${source_sha}"
           } >> "${GITHUB_OUTPUT}"
-
-      - name: Login to GHCR
-        uses: docker/login-action@v4
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push image
-        id: build
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: Dockerfile
-          push: true
-          pull: true
-          tags: |
-            ${{ steps.image.outputs.ref }}
-            ${{ steps.image.outputs.latest_ref }}
-          build-args: |
-            VITE_APP_NAME=Blog Frontend
-            VITE_APP_ENV=production
-            VITE_API_BASE_URL=/api
-            VITE_SENTRY_DSN=
-            VITE_SENTRY_RELEASE=${{ github.event.workflow_run.head_sha }}
-            VITE_SOURCEMAP=true
-            SENTRY_ORG=${{ vars.SENTRY_ORG }}
-            SENTRY_PROJECT=${{ vars.SENTRY_PROJECT }}
-            SENTRY_RELEASE=${{ github.event.workflow_run.head_sha }}
-          secrets: |
-            sentry_auth_token=${{ secrets.SENTRY_AUTH_TOKEN }}
 
   image-scan:
     name: 02 Image security scan
     runs-on: ubuntu-latest
-    needs: docker-image
+    needs: prepare
 
     steps:
       - name: Login to GHCR
@@ -97,18 +73,20 @@ jobs:
       - name: Scan image with Trivy
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: ${{ needs.docker-image.outputs.image-ref }}
+          image-ref: ${{ needs.prepare.outputs.image-ref }}
           format: table
           exit-code: '1'
           ignore-unfixed: true
           vuln-type: os,library
           severity: HIGH,CRITICAL
 
-  deploy-development:
-    name: 03 Deploy development
+  deploy-production:
+    name: 03 Deploy production
     runs-on: ubuntu-latest
-    needs: image-scan
-    environment: development
+    needs:
+      - prepare
+      - image-scan
+    environment: production
 
     steps:
       - name: Configure SSH
@@ -126,16 +104,16 @@ jobs:
       - name: Deploy with docker compose
         shell: bash
         env:
-          APP_ENV: development
+          APP_ENV: production
           APP_NAME: ${{ vars.APP_NAME || vars.VITE_APP_NAME || 'Blog Frontend' }}
           API_BASE_URL: ${{ vars.API_BASE_URL || vars.VITE_API_BASE_URL || '/api' }}
           COMPOSE_SERVICE: ${{ vars.COMPOSE_SERVICE }}
           DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           GHCR_USERNAME: ${{ vars.GHCR_USERNAME }}
-          IMAGE_REF: ${{ needs.docker-image.outputs.image-ref }}
+          IMAGE_REF: ${{ needs.prepare.outputs.image-ref }}
           SENTRY_DSN: ${{ secrets.SENTRY_DSN || secrets.VITE_SENTRY_DSN }}
-          SENTRY_RELEASE: ${{ github.event.workflow_run.head_sha }}
+          SENTRY_RELEASE: ${{ needs.prepare.outputs.source-sha }}
           SSH_HOST: ${{ vars.SSH_HOST }}
           SSH_PORT: ${{ vars.SSH_PORT }}
           SSH_USER: ${{ vars.SSH_USER }}
@@ -165,25 +143,25 @@ jobs:
           docker image prune -f
           EOF
 
-  smoke-development:
-    name: 04 Development smoke test
+  smoke-production:
+    name: 04 Production smoke test
     runs-on: ubuntu-latest
-    needs: deploy-development
-    environment: development
+    needs: deploy-production
+    environment: production
 
     steps:
-      - name: Check development URL
+      - name: Check production URL
         env:
           APP_URL: ${{ vars.APP_URL }}
         run: |
           curl --fail --silent --show-error --retry 5 --retry-delay 10 --max-time 20 "${APP_URL}"
 
   release-record:
-    name: 05 Development release record
+    name: 05 Production release record
     runs-on: ubuntu-latest
     needs:
-      - docker-image
-      - smoke-development
+      - prepare
+      - smoke-production
 
     steps:
       - name: Write release metadata
@@ -191,30 +169,28 @@ jobs:
         run: |
           cat > release-metadata.json <<EOF
           {
-            "environment": "development",
-            "source_sha": "${{ github.event.workflow_run.head_sha }}",
-            "image": "${{ needs.docker-image.outputs.image-ref }}",
-            "digest": "${{ needs.docker-image.outputs.digest }}",
-            "workflow_run_url": "${{ github.event.workflow_run.html_url }}",
+            "environment": "production",
+            "source_sha": "${{ needs.prepare.outputs.source-sha }}",
+            "image": "${{ needs.prepare.outputs.image-ref }}",
+            "workflow_run_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
             "deployed_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
           }
           EOF
 
           {
-            echo "### Development Release Record"
+            echo "### Production Release Record"
             echo
             echo "| Field | Value |"
             echo "| --- | --- |"
-            echo "| Environment | \`development\` |"
-            echo "| Source SHA | \`${{ github.event.workflow_run.head_sha }}\` |"
-            echo "| Image | \`${{ needs.docker-image.outputs.image-ref }}\` |"
-            echo "| Digest | \`${{ needs.docker-image.outputs.digest }}\` |"
-            echo "| Workflow | ${{ github.event.workflow_run.html_url }} |"
+            echo "| Environment | \`production\` |"
+            echo "| Source SHA | \`${{ needs.prepare.outputs.source-sha }}\` |"
+            echo "| Image | \`${{ needs.prepare.outputs.image-ref }}\` |"
+            echo "| Workflow | ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} |"
           } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Upload release metadata
         uses: actions/upload-artifact@v7
         with:
-          name: development-release-metadata
+          name: production-release-metadata
           path: release-metadata.json
           retention-days: 90
