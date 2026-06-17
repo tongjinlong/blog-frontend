@@ -23,7 +23,7 @@
     "check:deps": "knip",
     "check:spell": "cspell .",
     "ci": "pnpm format:check && pnpm lint && pnpm stylelint && pnpm typecheck && pnpm test:coverage && pnpm check:circular && pnpm build",
-    "ci:full": "pnpm ci && pnpm check:deps && pnpm check:spell && pnpm test:e2e",
+    "ci:full": "pnpm run ci && pnpm check:deps && pnpm check:spell && pnpm test:e2e",
     "commit": "cz"
   },
   "dependencies": {
