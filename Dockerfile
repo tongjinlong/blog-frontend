@@ -26,8 +26,12 @@ RUN --mount=type=secret,id=sentry_auth_token \
 FROM nginx:alpine AS runner
 
 COPY nginx/default.conf /etc/nginx/conf.d/default.conf
+COPY nginx/runtime-config.sh /docker-entrypoint.d/40-runtime-config.sh
 COPY --from=builder /app/dist /usr/share/nginx/html
+RUN chmod +x /docker-entrypoint.d/40-runtime-config.sh
 
 EXPOSE 80
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD wget -qO- http://127.0.0.1/ >/dev/null || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]

@@ -1,6 +1,6 @@
 # Blog Frontend
 
-个人博客前端项目，基于 Vue 3、TypeScript、Vite 和 pnpm 构建。项目包含基础代码质量门、单元测试、E2E 测试、Docker 镜像构建、Sentry 监控和 Dependabot 依赖更新配置。
+个人博客前端项目，基于 Vue 3、TypeScript、Vite 和 pnpm 构建。项目包含代码质量门、单元测试、E2E 测试、Docker 镜像构建与扫描、runtime config、Sentry 监控、自动 release notes 和 Dependabot 依赖分组策略。
 
 ## 技术栈
 
@@ -50,6 +50,7 @@ http://localhost:5173
 | `pnpm test:coverage`  | 运行单元测试并生成覆盖率     |
 | `pnpm test:e2e`       | 运行 Playwright E2E 测试     |
 | `pnpm check:circular` | 检查循环依赖                 |
+| `pnpm check:bundle`   | 检查构建产物 gzip 体积       |
 | `pnpm check:deps`     | 检查未使用依赖和导出         |
 | `pnpm check:spell`    | 拼写检查                     |
 | `pnpm run ci`         | 运行主要 CI 质量门           |
@@ -58,21 +59,34 @@ http://localhost:5173
 
 ## 环境变量
 
-本地开发从 `.env.local` 读取变量，示例见 `.env.example`。
+本地开发从 `.env.local` 读取变量，示例见 `.env.example`。Docker 运行时会在容器启动时生成 `/config.js`，前端优先读取 `window.__APP_CONFIG__`，再回退到 `VITE_*` 构建期变量。
 
-| 变量                    | 说明                        |
-| ----------------------- | --------------------------- |
-| `VITE_APP_NAME`         | 应用名称                    |
-| `VITE_APP_ENV`          | 应用运行环境                |
-| `VITE_PORT`             | Vite 开发服务端口           |
-| `VITE_API_BASE_URL`     | 前端请求 API 的基础路径     |
-| `VITE_API_PROXY_TARGET` | 开发环境 API 代理目标       |
-| `VITE_SENTRY_DSN`       | Sentry DSN                  |
-| `VITE_SENTRY_RELEASE`   | Sentry release 标识         |
-| `VITE_SOURCEMAP`        | 是否生成 sourcemap          |
-| `SENTRY_ORG`            | Sentry organization         |
-| `SENTRY_PROJECT`        | Sentry project              |
-| `SENTRY_AUTH_TOKEN`     | Sentry sourcemap 上传 token |
+构建期变量：
+
+| 变量                    | 说明                          |
+| ----------------------- | ----------------------------- |
+| `VITE_APP_NAME`         | 应用名称默认值                |
+| `VITE_APP_ENV`          | 应用运行环境默认值            |
+| `VITE_PORT`             | Vite 开发服务端口             |
+| `VITE_API_BASE_URL`     | 前端请求 API 的基础路径默认值 |
+| `VITE_API_PROXY_TARGET` | 开发环境 API 代理目标         |
+| `VITE_SENTRY_DSN`       | Sentry DSN 默认值             |
+| `VITE_SENTRY_RELEASE`   | Sentry release 默认值         |
+| `VITE_SOURCEMAP`        | 是否生成 sourcemap            |
+| `SENTRY_ORG`            | Sentry organization           |
+| `SENTRY_PROJECT`        | Sentry project                |
+| `SENTRY_AUTH_TOKEN`     | Sentry sourcemap 上传 token   |
+
+运行时变量：
+
+| 变量              | 说明                                        |
+| ----------------- | ------------------------------------------- |
+| `APP_NAME`        | Runtime 应用名称                            |
+| `APP_ENV`         | Runtime 环境，`development` 或 `production` |
+| `API_BASE_URL`    | Runtime API 基础路径                        |
+| `SENTRY_DSN`      | Runtime Sentry DSN                          |
+| `SENTRY_RELEASE`  | Runtime Sentry release 标识                 |
+| `APP_CONFIG_FILE` | 可选。覆盖容器内 `config.js` 输出路径       |
 
 不要把真实密钥提交到仓库。GitHub Actions 中应通过 repository variables 或 secrets 注入生产配置。
 
@@ -81,15 +95,23 @@ http://localhost:5173
 ```text
 .
 ├── .github/
+│   ├── actions/
+│   ├── ISSUE_TEMPLATE/
+│   ├── CODEOWNERS
+│   ├── PULL_REQUEST_TEMPLATE.md
 │   ├── dependabot.yml
 │   └── workflows/
 │       ├── ci.yml
-│       └── docker.yml
+│       ├── release.yml
+│       └── release-please.yml
 ├── .husky/
 ├── nginx/
-│   └── default.conf
+│   ├── default.conf
+│   └── runtime-config.sh
 ├── public/
+├── scripts/
 ├── src/
+│   ├── api/
 │   ├── assets/
 │   ├── components/
 │   ├── config/
@@ -180,11 +202,12 @@ PR 检查由 `.github/workflows/ci.yml` 维护，并按顺序执行：
 2. `PR Checks / 02 Commit messages`
 3. `PR Checks / 03 Basic checks`
 4. `PR Checks / 04 Unit tests and coverage`
-5. `PR Checks / 05 Build`
+5. `PR Checks / 05 Build`，包含 bundle size 检查
 6. `PR Checks / 06 E2E`
 7. `PR Checks / 07 Secret scan`
+8. `PR Checks / 08 Docker build check`
 
-单元测试覆盖率会上传为 GitHub Actions artifact，并在同仓库 PR 中创建或更新覆盖率评论。
+单元测试覆盖率会上传为 GitHub Actions artifact，并在同仓库 PR 中创建或更新覆盖率评论。构建阶段会上传 `dist/stats.html`，用于查看 bundle 组成。
 
 ## 构建与部署
 
@@ -203,10 +226,70 @@ docker build -t blog-frontend .
 运行容器：
 
 ```bash
-docker run --rm -p 8080:80 blog-frontend
+docker run --rm -p 8080:80 \
+  -e APP_ENV=development \
+  -e API_BASE_URL=/api \
+  blog-frontend
 ```
 
-GitHub Actions 中的 `Docker` workflow 会在 `master` 分支 push 后构建镜像并推送到 GHCR。
+PR 阶段只验证 Dockerfile 是否能构建，不推送镜像。PR 合并到 `master` 后，`Release` workflow 会在 `PR Checks` 成功后顺序执行：
+
+1. 构建并推送 GHCR 镜像
+2. 使用 Trivy 扫描镜像
+3. 通过 SSH + docker compose 自动部署 `development`
+4. 对 `development` 执行 smoke test
+5. 通过 GitHub Environment 审批后部署 `production`
+6. 对 `production` 执行 smoke test
+7. 上传 release metadata，记录 source SHA、image 和 digest
+
+服务器上的 `docker-compose.yml` 推荐使用 `IMAGE_REF` 指向精确镜像版本：
+
+```yaml
+services:
+  blog-frontend:
+    image: ${IMAGE_REF}
+    restart: unless-stopped
+    environment:
+      APP_NAME: ${APP_NAME:-Blog Frontend}
+      APP_ENV: ${APP_ENV:-production}
+      API_BASE_URL: ${API_BASE_URL:-/api}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_RELEASE: ${SENTRY_RELEASE:-}
+    ports:
+      - '8080:80'
+```
+
+`development` 和 `production` 两个 GitHub Environment 需要分别配置：
+
+| 类型   | 名称              | 说明                               |
+| ------ | ----------------- | ---------------------------------- |
+| secret | `SSH_PRIVATE_KEY` | 连接服务器的 SSH 私钥              |
+| secret | `GHCR_TOKEN`      | 服务器拉取 GHCR 私有镜像的 token   |
+| var    | `SSH_HOST`        | 服务器地址                         |
+| var    | `SSH_PORT`        | SSH 端口，通常为 `22`              |
+| var    | `SSH_USER`        | SSH 用户                           |
+| var    | `DEPLOY_PATH`     | 服务器上的 docker compose 项目目录 |
+| var    | `COMPOSE_SERVICE` | docker compose service 名称        |
+| var    | `GHCR_USERNAME`   | GHCR 登录用户名                    |
+| var    | `APP_URL`         | smoke test 访问地址                |
+| var    | `APP_NAME`        | Runtime 应用名称                   |
+| var    | `API_BASE_URL`    | Runtime API 基础路径               |
+| secret | `SENTRY_DSN`      | Runtime Sentry DSN，可为空         |
+
+`APP_ENV` 由 workflow 自动设置：`development` 部署为 `development`，`production` 部署为 `production`。`production` environment 建议开启 required reviewers，用于上线前人工审批。
+
+## 发布说明
+
+`.github/workflows/release-please.yml` 会在 `master` 推送后根据 Conventional Commits 创建或更新 release PR。合并该 PR 后会生成 changelog、tag 和 GitHub Release。
+
+## API 层
+
+HTTP 请求入口位于 `src/api/http.ts`：
+
+- `http`: 默认 axios instance，`baseURL` 来自 runtime config
+- `createApiClient`: 用于测试或特殊场景创建独立 client
+- `request`: 返回 `response.data` 的轻量封装
+- `ApiError`: 统一错误模型，区分 `http`、`network`、`timeout`、`unknown`
 
 ## 监控
 

@@ -1,0 +1,266 @@
+name: Release
+
+on:
+  workflow_run:
+    workflows: ['PR Checks']
+    branches: [master]
+    types: [completed]
+
+concurrency:
+  group: release-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+  IMAGE_REF: ghcr.io/${{ github.repository }}:${{ github.event.workflow_run.head_sha }}
+
+jobs:
+  docker-image:
+    name: 01 Docker image
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success'
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+      image-ref: ${{ env.IMAGE_REF }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_REF }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:master
+          build-args: |
+            VITE_APP_NAME=Blog Frontend
+            VITE_APP_ENV=production
+            VITE_API_BASE_URL=/api
+            VITE_SENTRY_DSN=
+            VITE_SENTRY_RELEASE=${{ github.event.workflow_run.head_sha }}
+            VITE_SOURCEMAP=true
+            SENTRY_ORG=${{ vars.SENTRY_ORG }}
+            SENTRY_PROJECT=${{ vars.SENTRY_PROJECT }}
+            SENTRY_RELEASE=${{ github.event.workflow_run.head_sha }}
+          secrets: |
+            sentry_auth_token=${{ secrets.SENTRY_AUTH_TOKEN }}
+
+  image-scan:
+    name: 02 Image security scan
+    runs-on: ubuntu-latest
+    needs: docker-image
+
+    steps:
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ needs.docker-image.outputs.image-ref }}
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+
+  deploy-development:
+    name: 03 Deploy development
+    runs-on: ubuntu-latest
+    needs: image-scan
+    environment: development
+
+    steps:
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_HOST: ${{ vars.SSH_HOST }}
+          SSH_PORT: ${{ vars.SSH_PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "${SSH_PRIVATE_KEY}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${SSH_PORT:-22}" "${SSH_HOST}" >> ~/.ssh/known_hosts
+
+      - name: Deploy with docker compose
+        env:
+          APP_ENV: development
+          APP_NAME: ${{ vars.APP_NAME || vars.VITE_APP_NAME || 'Blog Frontend' }}
+          API_BASE_URL: ${{ vars.API_BASE_URL || vars.VITE_API_BASE_URL || '/api' }}
+          COMPOSE_SERVICE: ${{ vars.COMPOSE_SERVICE }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          GHCR_USERNAME: ${{ vars.GHCR_USERNAME }}
+          IMAGE_REF: ${{ needs.docker-image.outputs.image-ref }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN || secrets.VITE_SENTRY_DSN }}
+          SENTRY_RELEASE: ${{ github.event.workflow_run.head_sha }}
+          SSH_HOST: ${{ vars.SSH_HOST }}
+          SSH_PORT: ${{ vars.SSH_PORT }}
+          SSH_USER: ${{ vars.SSH_USER }}
+        run: |
+          remote_env=$(
+            printf "DEPLOY_PATH=%q COMPOSE_SERVICE=%q IMAGE_REF=%q APP_NAME=%q APP_ENV=%q API_BASE_URL=%q SENTRY_DSN=%q SENTRY_RELEASE=%q" \
+              "${DEPLOY_PATH}" "${COMPOSE_SERVICE}" "${IMAGE_REF}" "${APP_NAME}" "${APP_ENV}" "${API_BASE_URL}" "${SENTRY_DSN}" "${SENTRY_RELEASE}"
+          )
+
+          if [ -n "${GHCR_TOKEN}" ]; then
+            printf '%s' "${GHCR_TOKEN}" | ssh -i ~/.ssh/deploy_key -p "${SSH_PORT:-22}" "${SSH_USER}@${SSH_HOST}" \
+              "docker login ghcr.io -u '${GHCR_USERNAME}' --password-stdin"
+          fi
+
+          ssh -i ~/.ssh/deploy_key -p "${SSH_PORT:-22}" "${SSH_USER}@${SSH_HOST}" "${remote_env} bash -s" <<'EOF'
+          set -euo pipefail
+
+          cd "${DEPLOY_PATH}"
+
+          export IMAGE_REF APP_NAME APP_ENV API_BASE_URL SENTRY_DSN SENTRY_RELEASE
+
+          docker compose pull "${COMPOSE_SERVICE}"
+          docker compose up -d "${COMPOSE_SERVICE}"
+          docker compose ps "${COMPOSE_SERVICE}"
+          docker image prune -f
+          EOF
+
+  smoke-development:
+    name: 04 Development smoke test
+    runs-on: ubuntu-latest
+    needs: deploy-development
+    environment: development
+
+    steps:
+      - name: Check development URL
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+        run: |
+          curl --fail --silent --show-error --retry 5 --retry-delay 10 --max-time 20 "${APP_URL}"
+
+  deploy-production:
+    name: 05 Deploy production
+    runs-on: ubuntu-latest
+    needs: smoke-development
+    environment: production
+
+    steps:
+      - name: Configure SSH
+        shell: bash
+        env:
+          SSH_HOST: ${{ vars.SSH_HOST }}
+          SSH_PORT: ${{ vars.SSH_PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "${SSH_PRIVATE_KEY}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${SSH_PORT:-22}" "${SSH_HOST}" >> ~/.ssh/known_hosts
+
+      - name: Deploy with docker compose
+        env:
+          APP_ENV: production
+          APP_NAME: ${{ vars.APP_NAME || vars.VITE_APP_NAME || 'Blog Frontend' }}
+          API_BASE_URL: ${{ vars.API_BASE_URL || vars.VITE_API_BASE_URL || '/api' }}
+          COMPOSE_SERVICE: ${{ vars.COMPOSE_SERVICE }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          GHCR_USERNAME: ${{ vars.GHCR_USERNAME }}
+          IMAGE_REF: ${{ needs.docker-image.outputs.image-ref }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN || secrets.VITE_SENTRY_DSN }}
+          SENTRY_RELEASE: ${{ github.event.workflow_run.head_sha }}
+          SSH_HOST: ${{ vars.SSH_HOST }}
+          SSH_PORT: ${{ vars.SSH_PORT }}
+          SSH_USER: ${{ vars.SSH_USER }}
+        run: |
+          remote_env=$(
+            printf "DEPLOY_PATH=%q COMPOSE_SERVICE=%q IMAGE_REF=%q APP_NAME=%q APP_ENV=%q API_BASE_URL=%q SENTRY_DSN=%q SENTRY_RELEASE=%q" \
+              "${DEPLOY_PATH}" "${COMPOSE_SERVICE}" "${IMAGE_REF}" "${APP_NAME}" "${APP_ENV}" "${API_BASE_URL}" "${SENTRY_DSN}" "${SENTRY_RELEASE}"
+          )
+
+          if [ -n "${GHCR_TOKEN}" ]; then
+            printf '%s' "${GHCR_TOKEN}" | ssh -i ~/.ssh/deploy_key -p "${SSH_PORT:-22}" "${SSH_USER}@${SSH_HOST}" \
+              "docker login ghcr.io -u '${GHCR_USERNAME}' --password-stdin"
+          fi
+
+          ssh -i ~/.ssh/deploy_key -p "${SSH_PORT:-22}" "${SSH_USER}@${SSH_HOST}" "${remote_env} bash -s" <<'EOF'
+          set -euo pipefail
+
+          cd "${DEPLOY_PATH}"
+
+          export IMAGE_REF APP_NAME APP_ENV API_BASE_URL SENTRY_DSN SENTRY_RELEASE
+
+          docker compose pull "${COMPOSE_SERVICE}"
+          docker compose up -d "${COMPOSE_SERVICE}"
+          docker compose ps "${COMPOSE_SERVICE}"
+          docker image prune -f
+          EOF
+
+  smoke-production:
+    name: 06 Production smoke test
+    runs-on: ubuntu-latest
+    needs: deploy-production
+    environment: production
+
+    steps:
+      - name: Check production URL
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+        run: |
+          curl --fail --silent --show-error --retry 5 --retry-delay 10 --max-time 20 "${APP_URL}"
+
+  release-record:
+    name: 07 Release record
+    runs-on: ubuntu-latest
+    needs:
+      - docker-image
+      - smoke-production
+
+    steps:
+      - name: Write release metadata
+        shell: bash
+        run: |
+          cat > release-metadata.json <<EOF
+          {
+            "source_sha": "${{ github.event.workflow_run.head_sha }}",
+            "image": "${{ needs.docker-image.outputs.image-ref }}",
+            "digest": "${{ needs.docker-image.outputs.digest }}",
+            "workflow_run_url": "${{ github.event.workflow_run.html_url }}",
+            "deployed_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          }
+          EOF
+
+          {
+            echo "### Release Record"
+            echo
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Source SHA | \`${{ github.event.workflow_run.head_sha }}\` |"
+            echo "| Image | \`${{ needs.docker-image.outputs.image-ref }}\` |"
+            echo "| Digest | \`${{ needs.docker-image.outputs.digest }}\` |"
+            echo "| Workflow | ${{ github.event.workflow_run.html_url }} |"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Upload release metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-metadata
+          path: release-metadata.json
+          retention-days: 90
