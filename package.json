@@ -20,9 +20,10 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "check:circular": "madge --extensions ts,vue --ts-config tsconfig.app.json --circular src",
+    "check:bundle": "node scripts/check-bundle-size.mjs",
     "check:deps": "knip",
     "check:spell": "cspell .",
-    "ci": "pnpm format:check && pnpm lint && pnpm stylelint && pnpm typecheck && pnpm test:coverage && pnpm check:circular && pnpm build",
+    "ci": "pnpm format:check && pnpm lint && pnpm stylelint && pnpm typecheck && pnpm test:coverage && pnpm check:circular && pnpm build && pnpm check:bundle",
     "ci:full": "pnpm run ci && pnpm check:deps && pnpm check:spell && pnpm test:e2e",
     "commit": "cz"
   },
@@ -35,7 +36,8 @@
     "three": "^0.184.0",
     "vue": "^3.5.34",
     "vue-router": "^5.1.0",
-    "web-vitals": "^5.3.0"
+    "web-vitals": "^5.3.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.0.2",

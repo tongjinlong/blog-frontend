@@ -1,6 +1,29 @@
 {
   "version": "0.2",
   "language": "en,zh-CN",
-  "ignorePaths": ["node_modules", "dist", "coverage", "pnpm-lock.yaml"],
-  "words": ["pinia", "vueuse", "sourcemap", "commitlint", "stylelint", "vite"]
+  "ignorePaths": [
+    "node_modules",
+    "dist",
+    "coverage",
+    "playwright-report",
+    "test-results",
+    "pnpm-lock.yaml",
+    "public/*.svg",
+    "src/assets/*.svg",
+    "src/auto-import.d.ts",
+    "src/components.d.ts"
+  ],
+  "words": [
+    "commitlint",
+    "geolocation",
+    "iconify",
+    "nosniff",
+    "pinia",
+    "SAMEORIGIN",
+    "sourcemap",
+    "stylelint",
+    "TTFB",
+    "vite",
+    "vueuse"
+  ]
 }

@@ -1,0 +1,21 @@
+{
+  "ignoreFiles": [
+    "public/config.js",
+    "src/api/index.ts",
+    "src/auto-import.d.ts",
+    "src/components.d.ts"
+  ],
+  "ignoreDependencies": [
+    "element-plus",
+    "three",
+    "@iconify-json/ep",
+    "@sentry/cli",
+    "@types/three",
+    "@vue/test-utils",
+    "msw",
+    "postcss-scss"
+  ],
+  "ignoreIssues": {
+    "src/api/http.ts": ["exports"]
+  }
+}

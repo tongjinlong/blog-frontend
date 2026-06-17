@@ -58,5 +58,17 @@ export default [
       globals: globals.node
     }
   },
+  {
+    files: ['*.config.{js,mjs}', 'scripts/**/*.mjs'],
+    languageOptions: {
+      globals: globals.node
+    }
+  },
+  {
+    files: ['public/**/*.js'],
+    languageOptions: {
+      globals: globals.browser
+    }
+  },
   prettier
 ]
