@@ -1,10 +1,11 @@
 import vue from '@vitejs/plugin-vue'
-import { defineConfig } from 'vitest/config'
+import { configDefaults, defineConfig } from 'vitest/config'
 
 export default defineConfig({
   plugins: [vue()],
   test: {
     environment: 'happy-dom',
+    exclude: [...configDefaults.exclude, 'tests/e2e/**'],
     setupFiles: ['./tests/setup.ts'],
     coverage: {
       provider: 'v8',
