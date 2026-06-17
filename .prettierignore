@@ -5,3 +5,4 @@ playwright-report
 test-results
 pnpm-lock.yaml
 src/auto-import.d.ts
+CHANGELOG.md
