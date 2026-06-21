@@ -18,6 +18,8 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
   IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+  DEVELOPMENT_APP_URL: https://tongjinlong.xyz
+  DEVELOPMENT_NGINX_SERVER_NAME: tongjinlong.xyz
 
 jobs:
   docker-image:
@@ -111,6 +113,60 @@ jobs:
     environment: development
 
     steps:
+      - name: Validate development environment config
+        shell: bash
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+          APP_NAME: ${{ vars.APP_NAME }}
+          APP_URL: ${{ vars.APP_URL }}
+          COMPOSE_SERVICE: ${{ vars.COMPOSE_SERVICE }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          GHCR_USERNAME: ${{ vars.GHCR_USERNAME }}
+          NGINX_SERVER_NAME: ${{ vars.NGINX_SERVER_NAME }}
+          SSH_HOST: ${{ vars.SSH_HOST }}
+          SSH_PORT: ${{ vars.SSH_PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_USER: ${{ vars.SSH_USER }}
+        run: |
+          failed=0
+
+          check_value() {
+            name="$1"
+            actual="$2"
+            expected="$3"
+
+            if [ "${actual}" != "${expected}" ]; then
+              echo "::error::development ${name} must be '${expected}'."
+              failed=1
+            fi
+          }
+
+          check_required() {
+            name="$1"
+            value="$2"
+
+            if [ -z "${value}" ]; then
+              echo "::error::development ${name} is required."
+              failed=1
+            fi
+          }
+
+          check_value APP_URL "${APP_URL}" "${DEVELOPMENT_APP_URL}"
+          check_value NGINX_SERVER_NAME "${NGINX_SERVER_NAME}" "${DEVELOPMENT_NGINX_SERVER_NAME}"
+          check_value API_BASE_URL "${API_BASE_URL}" "/api"
+          check_value APP_NAME "${APP_NAME}" "Blog Frontend"
+          check_value COMPOSE_SERVICE "${COMPOSE_SERVICE}" "blog-frontend"
+          check_value DEPLOY_PATH "${DEPLOY_PATH}" "/opt/blog-frontend-dev"
+          check_value GHCR_USERNAME "${GHCR_USERNAME}" "tongjinlong"
+          check_value SSH_HOST "${SSH_HOST}" "47.239.187.146"
+          check_value SSH_PORT "${SSH_PORT}" "22"
+          check_value SSH_USER "${SSH_USER}" "root"
+          check_required GHCR_TOKEN "${GHCR_TOKEN}"
+          check_required SSH_PRIVATE_KEY "${SSH_PRIVATE_KEY}"
+
+          exit "${failed}"
+
       - name: Configure SSH
         shell: bash
         env:
@@ -127,22 +183,23 @@ jobs:
         shell: bash
         env:
           APP_ENV: development
-          APP_NAME: ${{ vars.APP_NAME || vars.VITE_APP_NAME || 'Blog Frontend' }}
-          API_BASE_URL: ${{ vars.API_BASE_URL || vars.VITE_API_BASE_URL || '/api' }}
+          APP_NAME: ${{ vars.APP_NAME || 'Blog Frontend' }}
+          API_BASE_URL: ${{ vars.API_BASE_URL || '/api' }}
           COMPOSE_SERVICE: ${{ vars.COMPOSE_SERVICE }}
           DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           GHCR_USERNAME: ${{ vars.GHCR_USERNAME }}
           IMAGE_REF: ${{ needs.docker-image.outputs.image-ref }}
-          SENTRY_DSN: ${{ secrets.SENTRY_DSN || secrets.VITE_SENTRY_DSN }}
+          NGINX_SERVER_NAME: ${{ vars.NGINX_SERVER_NAME }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           SENTRY_RELEASE: ${{ github.event.workflow_run.head_sha }}
           SSH_HOST: ${{ vars.SSH_HOST }}
           SSH_PORT: ${{ vars.SSH_PORT }}
           SSH_USER: ${{ vars.SSH_USER }}
         run: |
           remote_env=$(
-            printf "DEPLOY_PATH=%q COMPOSE_SERVICE=%q IMAGE_REF=%q APP_NAME=%q APP_ENV=%q API_BASE_URL=%q SENTRY_DSN=%q SENTRY_RELEASE=%q" \
-              "${DEPLOY_PATH}" "${COMPOSE_SERVICE}" "${IMAGE_REF}" "${APP_NAME}" "${APP_ENV}" "${API_BASE_URL}" "${SENTRY_DSN}" "${SENTRY_RELEASE}"
+            printf "DEPLOY_PATH=%q COMPOSE_SERVICE=%q IMAGE_REF=%q APP_NAME=%q APP_ENV=%q API_BASE_URL=%q NGINX_SERVER_NAME=%q SENTRY_DSN=%q SENTRY_RELEASE=%q" \
+              "${DEPLOY_PATH}" "${COMPOSE_SERVICE}" "${IMAGE_REF}" "${APP_NAME}" "${APP_ENV}" "${API_BASE_URL}" "${NGINX_SERVER_NAME}" "${SENTRY_DSN}" "${SENTRY_RELEASE}"
           )
           ghcr_username="${GHCR_USERNAME:-${GITHUB_ACTOR}}"
           ghcr_username_arg=$(printf '%q' "${ghcr_username}")
@@ -157,7 +214,7 @@ jobs:
 
           cd "${DEPLOY_PATH}"
 
-          export IMAGE_REF APP_NAME APP_ENV API_BASE_URL SENTRY_DSN SENTRY_RELEASE
+          export IMAGE_REF APP_NAME APP_ENV API_BASE_URL NGINX_SERVER_NAME SENTRY_DSN SENTRY_RELEASE
 
           docker compose pull "${COMPOSE_SERVICE}"
           docker compose up -d "${COMPOSE_SERVICE}"

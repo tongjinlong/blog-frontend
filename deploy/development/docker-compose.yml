@@ -1,0 +1,13 @@
+services:
+  blog-frontend:
+    image: ${IMAGE_REF}
+    restart: unless-stopped
+    environment:
+      APP_NAME: ${APP_NAME:-Blog Frontend}
+      APP_ENV: ${APP_ENV:-development}
+      API_BASE_URL: ${API_BASE_URL:-/api}
+      NGINX_SERVER_NAME: ${NGINX_SERVER_NAME:-tongjinlong.xyz}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_RELEASE: ${SENTRY_RELEASE:-}
+    ports:
+      - '127.0.0.1:8081:80'
