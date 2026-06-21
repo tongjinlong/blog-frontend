@@ -79,14 +79,15 @@ http://localhost:5173
 
 运行时变量：
 
-| 变量              | 说明                                        |
-| ----------------- | ------------------------------------------- |
-| `APP_NAME`        | Runtime 应用名称                            |
-| `APP_ENV`         | Runtime 环境，`development` 或 `production` |
-| `API_BASE_URL`    | Runtime API 基础路径                        |
-| `SENTRY_DSN`      | Runtime Sentry DSN                          |
-| `SENTRY_RELEASE`  | Runtime Sentry release 标识                 |
-| `APP_CONFIG_FILE` | 可选。覆盖容器内 `config.js` 输出路径       |
+| 变量                | 说明                                                             |
+| ------------------- | ---------------------------------------------------------------- |
+| `APP_NAME`          | Runtime 应用名称                                                 |
+| `APP_ENV`           | Runtime 环境，`development` 或 `production`                      |
+| `API_BASE_URL`      | Runtime API 基础路径                                             |
+| `NGINX_SERVER_NAME` | Nginx 域名配置，可填写多个域名，如 `example.com www.example.com` |
+| `SENTRY_DSN`        | Runtime Sentry DSN                                               |
+| `SENTRY_RELEASE`    | Runtime Sentry release 标识                                      |
+| `APP_CONFIG_FILE`   | 可选。覆盖容器内 `config.js` 输出路径                            |
 
 不要把真实密钥提交到仓库。GitHub Actions 中应通过 repository variables 或 secrets 注入生产配置。
 
@@ -106,8 +107,13 @@ http://localhost:5173
 │       ├── release.yml
 │       └── release-please.yml
 ├── .husky/
+├── deploy/
+│   ├── development/
+│   │   └── docker-compose.yml
+│   └── nginx/
+│       └── tongjinlong.xyz.conf
 ├── nginx/
-│   ├── default.conf
+│   ├── default.conf.template
 │   └── runtime-config.sh
 ├── public/
 ├── scripts/
@@ -251,7 +257,7 @@ PR 阶段只验证 Dockerfile 是否能构建，不推送镜像。PR 合并到 `
 
 如果需要发布精确版本，手动触发时填写 `image_ref` 为 `ghcr.io/<owner>/<repo>:<source-sha>`，并填写对应的 `source_sha`，便于 Sentry release 和发布记录对齐。
 
-服务器上的 `docker-compose.yml` 推荐使用 `IMAGE_REF` 指向精确镜像版本：
+development 环境域名为 `tongjinlong.xyz`，公网入口推荐由宿主机 Nginx 负责 HTTPS 和反向代理，前端容器仅绑定到本机端口。服务器上的 development compose 配置以 `deploy/development/docker-compose.yml` 为准：
 
 ```yaml
 services:
@@ -260,32 +266,40 @@ services:
     restart: unless-stopped
     environment:
       APP_NAME: ${APP_NAME:-Blog Frontend}
-      APP_ENV: ${APP_ENV:-production}
+      APP_ENV: ${APP_ENV:-development}
       API_BASE_URL: ${API_BASE_URL:-/api}
+      NGINX_SERVER_NAME: ${NGINX_SERVER_NAME:-tongjinlong.xyz}
       SENTRY_DSN: ${SENTRY_DSN:-}
       SENTRY_RELEASE: ${SENTRY_RELEASE:-}
     ports:
-      - '8080:80'
+      - '127.0.0.1:8081:80'
 ```
 
-`development` 和 `production` 两个 GitHub Environment 需要分别配置：
+宿主机 Nginx 最终配置以 `deploy/nginx/tongjinlong.xyz.conf` 为准，HTTP 自动跳转 HTTPS，并反向代理到 `http://127.0.0.1:8081`。这份配置假设证书已经存在于 `/etc/letsencrypt/live/tongjinlong.xyz/`；首次签发可按服务器现状使用 Certbot：
 
-| 类型   | 名称              | 说明                               |
-| ------ | ----------------- | ---------------------------------- |
-| secret | `SSH_PRIVATE_KEY` | 连接服务器的 SSH 私钥              |
-| secret | `GHCR_TOKEN`      | 服务器拉取 GHCR 私有镜像的 token   |
-| var    | `SSH_HOST`        | 服务器地址                         |
-| var    | `SSH_PORT`        | SSH 端口，通常为 `22`              |
-| var    | `SSH_USER`        | SSH 用户                           |
-| var    | `DEPLOY_PATH`     | 服务器上的 docker compose 项目目录 |
-| var    | `COMPOSE_SERVICE` | docker compose service 名称        |
-| var    | `GHCR_USERNAME`   | GHCR 登录用户名                    |
-| var    | `APP_URL`         | smoke test 访问地址                |
-| var    | `APP_NAME`        | Runtime 应用名称                   |
-| var    | `API_BASE_URL`    | Runtime API 基础路径               |
-| secret | `SENTRY_DSN`      | Runtime Sentry DSN，可为空         |
+```bash
+sudo certbot --nginx -d tongjinlong.xyz
+```
 
-`APP_ENV` 由 workflow 自动设置：`development` 部署为 `development`，`production` 部署为 `production`。`production` environment 建议开启 required reviewers，用于生产部署前人工审批。
+development GitHub Environment 需要配置：
+
+| 类型   | 名称                | 说明                                       |
+| ------ | ------------------- | ------------------------------------------ |
+| secret | `SSH_PRIVATE_KEY`   | 连接服务器的 SSH 私钥                      |
+| secret | `GHCR_TOKEN`        | 服务器拉取 GHCR 私有镜像的 token           |
+| secret | `SENTRY_DSN`        | Runtime Sentry DSN，可为空                 |
+| var    | `APP_URL`           | `https://tongjinlong.xyz`                  |
+| var    | `NGINX_SERVER_NAME` | `tongjinlong.xyz`                          |
+| var    | `API_BASE_URL`      | `/api`                                     |
+| var    | `APP_NAME`          | `Blog Frontend`                            |
+| var    | `COMPOSE_SERVICE`   | `blog-frontend`                            |
+| var    | `DEPLOY_PATH`       | `/opt/blog-frontend-dev`                   |
+| var    | `GHCR_USERNAME`     | `tongjinlong`                              |
+| var    | `SSH_HOST`          | `47.239.187.146`                           |
+| var    | `SSH_PORT`          | `22`                                       |
+| var    | `SSH_USER`          | `root`，后续建议改为最小权限 `deploy` 用户 |
+
+`Deploy Development` workflow 会在部署前校验以上 development 配置。不要在 development Environment 中新增 `VITE_*` 或 production 专用变量；`APP_URL` 不应再使用 `http://47.239.187.146:8081`。`APP_ENV` 由 workflow 自动设置为 `development`。production 本轮暂不配置，后续启用时应单独整理并开启 required reviewers。
 
 ## 发布说明
 

@@ -27,7 +27,9 @@ FROM nginx:alpine AS runner
 
 RUN apk upgrade --no-cache
 
-COPY nginx/default.conf /etc/nginx/conf.d/default.conf
+ENV NGINX_SERVER_NAME=_
+
+COPY nginx/default.conf.template /etc/nginx/templates/default.conf.template
 COPY nginx/runtime-config.sh /docker-entrypoint.d/40-runtime-config.sh
 COPY --from=builder /app/dist /usr/share/nginx/html
 RUN chmod +x /docker-entrypoint.d/40-runtime-config.sh
