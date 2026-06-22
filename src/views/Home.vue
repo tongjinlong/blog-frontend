@@ -14,9 +14,7 @@ import SpacePreviewPanel from '@/features/home/SpacePreviewPanel.vue'
         <div class="home-hero__copy">
           <p class="home-hero__eyebrow">Simon 的知识园区</p>
           <h1 id="home-title">走进我的空间</h1>
-          <p class="home-hero__lead">
-            从园区入口进入我的工程经验、三维实验、交付方法和 AI 实践。
-          </p>
+          <p class="home-hero__lead">从园区入口进入我的工程经验、三维实验、交付方法和 AI 实践。</p>
 
           <RouterLink class="home-hero__action" :to="{ name: 'world' }" aria-label="进入空间">
             <span aria-hidden="true">↗</span>
@@ -52,9 +50,24 @@ import SpacePreviewPanel from '@/features/home/SpacePreviewPanel.vue'
   z-index: 1;
   pointer-events: none;
   background:
-    radial-gradient(circle at 23% 44%, transparent 0 25%, rgb(242 246 235 / 22%) 48%, rgb(242 246 235 / 64%) 80%),
-    linear-gradient(90deg, rgb(242 246 235 / 0%) 0 48%, rgb(244 248 242 / 50%) 70%, rgb(246 243 247 / 86%) 100%),
-    linear-gradient(180deg, rgb(255 246 224 / 20%) 0%, rgb(255 246 224 / 0%) 46%, rgb(36 52 43 / 26%) 100%);
+    radial-gradient(
+      circle at 23% 44%,
+      transparent 0 25%,
+      rgb(242 246 235 / 22%) 48%,
+      rgb(242 246 235 / 64%) 80%
+    ),
+    linear-gradient(
+      90deg,
+      rgb(242 246 235 / 0%) 0 48%,
+      rgb(244 248 242 / 50%) 70%,
+      rgb(246 243 247 / 86%) 100%
+    ),
+    linear-gradient(
+      180deg,
+      rgb(255 246 224 / 20%) 0%,
+      rgb(255 246 224 / 0%) 46%,
+      rgb(36 52 43 / 26%) 100%
+    );
 }
 
 .home-hero__content {
@@ -153,8 +166,18 @@ import SpacePreviewPanel from '@/features/home/SpacePreviewPanel.vue'
 @media (width <= 560px) {
   .home-hero__veil {
     background:
-      linear-gradient(180deg, rgb(20 39 31 / 4%) 0%, rgb(20 39 31 / 28%) 54%, rgb(20 39 31 / 70%) 100%),
-      radial-gradient(circle at 50% 36%, transparent 0 26%, rgb(245 244 233 / 28%) 68%, rgb(245 244 233 / 58%) 100%);
+      linear-gradient(
+        180deg,
+        rgb(20 39 31 / 4%) 0%,
+        rgb(20 39 31 / 28%) 54%,
+        rgb(20 39 31 / 70%) 100%
+      ),
+      radial-gradient(
+        circle at 50% 36%,
+        transparent 0 26%,
+        rgb(245 244 233 / 28%) 68%,
+        rgb(245 244 233 / 58%) 100%
+      );
   }
 
   .home-hero__content {

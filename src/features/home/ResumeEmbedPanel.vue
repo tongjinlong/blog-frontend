@@ -82,9 +82,7 @@ function handlePointerMove(event: PointerEvent) {
   max-height: 100%;
   user-select: none;
   object-fit: contain;
-  filter:
-    drop-shadow(0 30px 58px rgb(16 28 24 / 18%))
-    drop-shadow(0 3px 1px rgb(255 255 255 / 22%));
+  filter: drop-shadow(0 30px 58px rgb(16 28 24 / 18%)) drop-shadow(0 3px 1px rgb(255 255 255 / 22%));
 }
 
 @media (prefers-reduced-motion: reduce) {
