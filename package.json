@@ -28,7 +28,7 @@
     "commit": "cz"
   },
   "dependencies": {
-    "@sentry/vue": "^10.58.0",
+    "@sentry/vue": "^10.59.0",
     "@vueuse/core": "^14.3.0",
     "axios": "^1.18.0",
     "element-plus": "^2.14.2",
