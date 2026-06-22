@@ -21,7 +21,10 @@ function hasWebGLSupport() {
   }
 }
 
-function createStandardMaterial(color: THREE.ColorRepresentation, emissive?: THREE.ColorRepresentation) {
+function createStandardMaterial(
+  color: THREE.ColorRepresentation,
+  emissive?: THREE.ColorRepresentation
+) {
   return new THREE.MeshStandardMaterial({
     color,
     emissive: emissive ?? '#000000',
@@ -37,7 +40,10 @@ function createBox(
   color: THREE.ColorRepresentation,
   position: THREE.Vector3Tuple
 ) {
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), createStandardMaterial(color))
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(width, height, depth),
+    createStandardMaterial(color)
+  )
   mesh.position.set(...position)
   mesh.castShadow = true
   mesh.receiveShadow = true
@@ -67,7 +73,9 @@ function createCylinder(
 function createLowPolyTree(position: THREE.Vector3Tuple, scale = 1) {
   const tree = new THREE.Group()
   tree.position.set(...position)
-  tree.add(createCylinder(0.12 * scale, 0.16 * scale, 1.04 * scale, '#7c563a', [0, 0.52 * scale, 0], 7))
+  tree.add(
+    createCylinder(0.12 * scale, 0.16 * scale, 1.04 * scale, '#7c563a', [0, 0.52 * scale, 0], 7)
+  )
 
   const lower = new THREE.Mesh(
     new THREE.DodecahedronGeometry(0.58 * scale, 0),
@@ -97,7 +105,12 @@ function createLamp(position: THREE.Vector3Tuple, color: THREE.ColorRepresentati
 
   const glow = new THREE.Mesh(
     new THREE.SphereGeometry(0.13, 18, 12),
-    new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 1.4, roughness: 0.4 })
+    new THREE.MeshStandardMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity: 1.4,
+      roughness: 0.4
+    })
   )
   glow.position.set(0.36, 1.18, 0)
   lamp.add(glow)
@@ -187,10 +200,7 @@ function mountPreview(canvas: HTMLCanvasElement) {
   const park = new THREE.Group()
   park.position.x = -2.15
 
-  const ground = new THREE.Mesh(
-    new THREE.CircleGeometry(12, 48),
-    createStandardMaterial('#8dad6e')
-  )
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(12, 48), createStandardMaterial('#8dad6e'))
   ground.rotation.x = -Math.PI / 2
   ground.position.y = -0.02
   ground.receiveShadow = true
@@ -241,7 +251,10 @@ function mountPreview(canvas: HTMLCanvasElement) {
   const hillMaterial = createStandardMaterial('#6f9d75')
 
   for (let index = 0; index < 4; index += 1) {
-    const hill = new THREE.Mesh(new THREE.ConeGeometry(2.9 + index * 0.42, 1.5 + index * 0.2, 8), hillMaterial)
+    const hill = new THREE.Mesh(
+      new THREE.ConeGeometry(2.9 + index * 0.42, 1.5 + index * 0.2, 8),
+      hillMaterial
+    )
     hill.position.set(-5 + index * 3.2, 0.64, 0)
     hill.rotation.y = index * 0.38
     hill.receiveShadow = true
@@ -252,7 +265,11 @@ function mountPreview(canvas: HTMLCanvasElement) {
 
   const sun = new THREE.Mesh(
     new THREE.SphereGeometry(0.5, 24, 16),
-    new THREE.MeshStandardMaterial({ color: '#fff0a8', emissive: '#ffd26a', emissiveIntensity: 1.5 })
+    new THREE.MeshStandardMaterial({
+      color: '#fff0a8',
+      emissive: '#ffd26a',
+      emissiveIntensity: 1.5
+    })
   )
   sun.position.set(-5.3, 4.1, -5.9)
   park.add(sun)

@@ -7,7 +7,8 @@
   --color-terracotta: #b85238;
   --color-plum: #6e4c6b;
   --color-border: rgb(51 75 69 / 16%);
-  --font-sans: inter, ui-sans-serif, system-ui, -apple-system, blinkmacsystemfont, 'Segoe UI', sans-serif;
+  --font-sans:
+    inter, ui-sans-serif, system-ui, -apple-system, blinkmacsystemfont, 'Segoe UI', sans-serif;
 
   font-family: var(--font-sans);
   font-size: 17px;
