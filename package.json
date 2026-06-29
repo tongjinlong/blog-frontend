@@ -28,13 +28,13 @@
     "commit": "cz"
   },
   "dependencies": {
-    "@sentry/vue": "^10.58.0",
+    "@sentry/vue": "^10.62.0",
     "@vueuse/core": "^14.3.0",
-    "axios": "^1.18.0",
+    "axios": "^1.18.1",
     "element-plus": "^2.14.2",
     "pinia": "^3.0.4",
-    "three": "^0.184.0",
-    "vue": "^3.5.34",
+    "three": "^0.185.0",
+    "vue": "^3.5.39",
     "vue-router": "^5.1.0",
     "web-vitals": "^5.3.0",
     "zod": "^4.4.3"
@@ -50,7 +50,7 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/vue": "^8.1.0",
     "@types/node": "^25.9.3",
-    "@types/three": "^0.184.1",
+    "@types/three": "^0.185.0",
     "@vitejs/plugin-vue": "^6.0.6",
     "@vitest/coverage-v8": "^4.1.9",
     "@vue/test-utils": "^2.4.11",
