@@ -14,12 +14,14 @@ import SpaceScene from '@/features/space/SpaceScene.vue'
           <p class="home-hero__eyebrow">Simon 的知识园区</p>
           <h1 id="home-title">走进我的空间</h1>
           <p class="home-hero__lead">从园区入口进入我的工程经验、三维实验、交付方法和 AI 实践。</p>
-
-          <RouterLink class="home-hero__action" :to="{ name: 'world' }" aria-label="进入空间">
-            <span aria-hidden="true">↗</span>
-            进入空间
-          </RouterLink>
         </div>
+      </div>
+
+      <div class="home-hero__entry" data-visual-layer="center-entry">
+        <RouterLink class="home-hero__action" :to="{ name: 'world' }" aria-label="进入空间">
+          <span aria-hidden="true">↗</span>
+          进入空间
+        </RouterLink>
       </div>
     </section>
   </main>
@@ -114,32 +116,102 @@ import SpaceScene from '@/features/space/SpaceScene.vue'
   color: #fff7df;
 }
 
+.home-hero__entry {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
 .home-hero__action {
+  position: relative;
   display: inline-flex;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
   justify-content: center;
-  min-height: 48px;
-  padding: 0 18px;
-  margin-top: 26px;
+  min-width: 168px;
+  min-height: 56px;
+  padding: 0 28px;
+  overflow: hidden;
   font-weight: 900;
-  color: #26332d;
+  color: #fff8e5;
   text-decoration: none;
-  background: rgb(255 247 218 / 88%);
-  border-radius: 999px;
-  box-shadow: 0 18px 48px rgb(23 33 29 / 20%);
+  text-shadow: 0 2px 16px rgb(25 39 32 / 60%);
+  pointer-events: auto;
+  background:
+    linear-gradient(140deg, rgb(255 255 255 / 20%), rgb(255 255 255 / 4%) 44%, transparent 72%),
+    rgb(255 255 255 / 5%);
+  border: 1px solid rgb(255 250 231 / 66%);
+  border-radius: 8px;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 58%),
+    inset 0 -24px 42px rgb(255 255 255 / 5%),
+    0 20px 70px rgb(18 30 25 / 24%);
+  isolation: isolate;
+  backdrop-filter: blur(5px) saturate(124%);
   transition:
-    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
     transform 0.2s ease;
 }
 
+.home-hero__action::before,
+.home-hero__action::after {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  content: '';
+}
+
+.home-hero__action::before {
+  background:
+    linear-gradient(
+      90deg,
+      transparent calc(50% - 0.5px),
+      rgb(255 250 231 / 34%) 50%,
+      transparent calc(50% + 0.5px)
+    ),
+    linear-gradient(
+      180deg,
+      transparent calc(50% - 0.5px),
+      rgb(255 250 231 / 22%) 50%,
+      transparent calc(50% + 0.5px)
+    );
+  opacity: 0.62;
+}
+
+.home-hero__action::after {
+  inset: 1px;
+  background: linear-gradient(122deg, rgb(255 255 255 / 28%), transparent 34%);
+  border-radius: 7px;
+  opacity: 0.74;
+}
+
+.home-hero__action span {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  aspect-ratio: 1;
+  font-size: 1rem;
+  line-height: 1;
+  border: 1px solid rgb(255 250 231 / 46%);
+  border-radius: 50%;
+}
+
 .home-hero__action:hover {
-  background: #fff9e5;
+  border-color: rgb(255 252 240 / 88%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 70%),
+    inset 0 -28px 50px rgb(255 255 255 / 8%),
+    0 24px 78px rgb(18 30 25 / 30%);
   transform: translateY(-2px);
 }
 
 .home-hero__action:focus-visible {
-  outline: 3px solid rgb(255 249 229 / 62%);
+  outline: 3px solid rgb(255 249 229 / 68%);
   outline-offset: 3px;
 }
 
@@ -181,8 +253,9 @@ import SpaceScene from '@/features/space/SpaceScene.vue'
   }
 
   .home-hero__action {
-    min-height: 44px;
-    margin-top: 18px;
+    min-width: 150px;
+    min-height: 50px;
+    padding: 0 22px;
   }
 }
 </style>
