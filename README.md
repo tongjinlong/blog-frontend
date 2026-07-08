@@ -100,7 +100,6 @@ http://localhost:5173
 │   ├── actions/
 │   ├── ISSUE_TEMPLATE/
 │   ├── CODEOWNERS
-│   ├── PULL_REQUEST_TEMPLATE.md
 │   ├── dependabot.yml
 │   └── workflows/
 │       ├── ci.yml
