@@ -1,0 +1,30 @@
+name: Dependency Audit
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 1 1 * *'
+
+concurrency:
+  group: dependency-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-audit:
+    name: Audit Dependencies
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm and Node
+        uses: ./.github/actions/setup-pnpm-node
+        with:
+          install: 'false'
+
+      - name: Audit high severity dependencies
+        run: pnpm audit --audit-level high

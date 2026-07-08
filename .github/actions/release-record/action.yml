@@ -1,0 +1,84 @@
+name: Release record
+description: Write release metadata and upload it as an artifact.
+
+inputs:
+  environment:
+    description: Deployed environment name.
+    required: true
+  source-sha:
+    description: Source commit SHA.
+    required: true
+  image-ref:
+    description: Deployed image reference.
+    required: true
+  digest:
+    description: Deployed image digest.
+    required: false
+    default: ''
+  workflow-run-url:
+    description: Workflow run URL.
+    required: true
+  artifact-name:
+    description: Artifact name for the release metadata.
+    required: true
+  retention-days:
+    description: Artifact retention in days.
+    required: false
+    default: '90'
+
+runs:
+  using: composite
+  steps:
+    - name: Write release metadata
+      shell: bash
+      env:
+        DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+        SOURCE_SHA: ${{ inputs.source-sha }}
+        IMAGE_REF: ${{ inputs.image-ref }}
+        DIGEST: ${{ inputs.digest }}
+        WORKFLOW_RUN_URL: ${{ inputs.workflow-run-url }}
+      run: |
+        json_string() {
+          local value="$1"
+          value="${value//\\/\\\\}"
+          value="${value//\"/\\\"}"
+          printf '"%s"' "${value}"
+        }
+
+        deployed_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+
+        {
+          echo "{"
+          echo "  \"environment\": $(json_string "${DEPLOY_ENVIRONMENT}"),"
+          echo "  \"source_sha\": $(json_string "${SOURCE_SHA}"),"
+          echo "  \"image\": $(json_string "${IMAGE_REF}"),"
+          if [ -n "${DIGEST}" ]; then
+            echo "  \"digest\": $(json_string "${DIGEST}"),"
+          fi
+          echo "  \"workflow_run_url\": $(json_string "${WORKFLOW_RUN_URL}"),"
+          echo "  \"deployed_at\": $(json_string "${deployed_at}")"
+          echo "}"
+        } > release-metadata.json
+
+        title_env="$(tr '[:lower:]' '[:upper:]' <<< "${DEPLOY_ENVIRONMENT:0:1}")${DEPLOY_ENVIRONMENT:1}"
+
+        {
+          echo "### ${title_env} Release Record"
+          echo
+          echo "| Field | Value |"
+          echo "| --- | --- |"
+          echo "| Environment | \`${DEPLOY_ENVIRONMENT}\` |"
+          echo "| Source SHA | \`${SOURCE_SHA}\` |"
+          echo "| Image | \`${IMAGE_REF}\` |"
+          if [ -n "${DIGEST}" ]; then
+            echo "| Digest | \`${DIGEST}\` |"
+          fi
+          echo "| Workflow | ${WORKFLOW_RUN_URL} |"
+        } >> "${GITHUB_STEP_SUMMARY}"
+
+    - name: Upload release metadata
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: release-metadata.json
+        retention-days: ${{ inputs.retention-days }}

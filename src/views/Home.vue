@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import ResumeEmbedPanel from '@/features/home/ResumeEmbedPanel.vue'
-import SpacePreviewPanel from '@/features/home/SpacePreviewPanel.vue'
+import SpaceScene from '@/features/space/SpaceScene.vue'
 </script>
 
 <template>
   <main class="home-page">
     <section class="home-hero" aria-labelledby="home-title" aria-label="户外知识园区入口">
-      <SpacePreviewPanel />
+      <SpaceScene view-mode="overview" />
 
       <div class="home-hero__veil" aria-hidden="true"></div>
 
@@ -21,8 +20,6 @@ import SpacePreviewPanel from '@/features/home/SpacePreviewPanel.vue'
             进入空间
           </RouterLink>
         </div>
-
-        <ResumeEmbedPanel />
       </div>
     </section>
   </main>
@@ -73,10 +70,8 @@ import SpacePreviewPanel from '@/features/home/SpacePreviewPanel.vue'
 .home-hero__content {
   position: relative;
   z-index: 2;
-  display: grid;
-  grid-template-columns: minmax(320px, 0.92fr) minmax(540px, 0.78fr);
-  gap: clamp(24px, 4vw, 72px);
-  align-items: center;
+  display: flex;
+  align-items: flex-end;
   width: min(1440px, calc(100% - 32px));
   min-width: 0;
   min-height: 100svh;
@@ -92,7 +87,7 @@ import SpacePreviewPanel from '@/features/home/SpacePreviewPanel.vue'
 }
 
 .home-hero__copy {
-  align-self: end;
+  max-width: 660px;
   padding-bottom: min(12vh, 118px);
   color: #fdf8e8;
   text-shadow: 0 2px 20px rgb(29 45 38 / 34%);
@@ -150,14 +145,10 @@ import SpacePreviewPanel from '@/features/home/SpacePreviewPanel.vue'
 
 @media (width <= 1024px) {
   .home-hero__content {
-    grid-template-columns: 1fr;
-    gap: 14px;
-    align-content: end;
     width: min(760px, calc(100% - 36px));
   }
 
   .home-hero__copy {
-    align-self: auto;
     max-width: 620px;
     padding: 0;
   }

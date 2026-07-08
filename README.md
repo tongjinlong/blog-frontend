@@ -26,7 +26,7 @@
 ```bash
 pnpm install
 cp .env.example .env.local
-pnpm dev
+pnpm start
 ```
 
 默认开发服务地址：
@@ -37,29 +37,30 @@ http://localhost:5173
 
 ## 常用命令
 
-| 命令                  | 说明                         |
-| --------------------- | ---------------------------- |
-| `pnpm dev`            | 启动本地开发服务             |
-| `pnpm build`          | 类型检查并构建生产产物       |
-| `pnpm preview`        | 本地预览构建产物             |
-| `pnpm format:check`   | 检查 Prettier 格式           |
-| `pnpm lint`           | 检查 TypeScript/Vue 代码     |
-| `pnpm stylelint`      | 检查样式文件                 |
-| `pnpm typecheck`      | 运行 Vue/TypeScript 类型检查 |
-| `pnpm test:unit`      | 运行单元测试                 |
-| `pnpm test:coverage`  | 运行单元测试并生成覆盖率     |
-| `pnpm test:e2e`       | 运行 Playwright E2E 测试     |
-| `pnpm check:circular` | 检查循环依赖                 |
-| `pnpm check:bundle`   | 检查构建产物 gzip 体积       |
-| `pnpm check:deps`     | 检查未使用依赖和导出         |
-| `pnpm check:spell`    | 拼写检查                     |
-| `pnpm run ci`         | 运行主要 CI 质量门           |
-| `pnpm run ci:full`    | 运行完整质量检查             |
-| `pnpm commit`         | 使用 Commitizen 生成提交信息 |
+| 命令                  | 说明                                 |
+| --------------------- | ------------------------------------ |
+| `pnpm start`          | 使用 `.env.local` 启动本地服务       |
+| `pnpm dev`            | 使用 `.env.development` 启动开发服务 |
+| `pnpm build`          | 类型检查并构建生产产物               |
+| `pnpm preview`        | 本地预览构建产物                     |
+| `pnpm format:check`   | 检查 Prettier 格式                   |
+| `pnpm lint`           | 检查 TypeScript/Vue 代码             |
+| `pnpm stylelint`      | 检查样式文件                         |
+| `pnpm typecheck`      | 运行 Vue/TypeScript 类型检查         |
+| `pnpm test:unit`      | 运行单元测试                         |
+| `pnpm test:coverage`  | 运行单元测试并生成覆盖率             |
+| `pnpm test:e2e`       | 运行 Playwright E2E 测试             |
+| `pnpm check:circular` | 检查循环依赖                         |
+| `pnpm check:bundle`   | 检查构建产物 gzip 体积               |
+| `pnpm check:deps`     | 检查未使用依赖和导出                 |
+| `pnpm check:spell`    | 拼写检查                             |
+| `pnpm run ci`         | 运行主要 CI 质量门                   |
+| `pnpm run ci:full`    | 运行完整质量检查                     |
+| `pnpm commit`         | 使用 Commitizen 生成提交信息         |
 
 ## 环境变量
 
-本地开发从 `.env.local` 读取变量，示例见 `.env.example`。Docker 运行时会在容器启动时生成 `/config.js`，前端优先读取 `window.__APP_CONFIG__`，再回退到 `VITE_*` 构建期变量。
+本地个人配置从 `.env.local` 读取变量，示例见 `.env.example`。`pnpm start` 使用 `local-dev` mode 启动，因此同名变量会使用 `.env.local`；`pnpm dev` 使用 Vite 默认的 `development` mode，同名变量会由 `.env.development` 覆盖 `.env.local`。shell 中显式设置的环境变量优先级最高。Docker 运行时会在容器启动时生成 `/config.js`，前端优先读取 `window.__APP_CONFIG__`，再回退到 `VITE_*` 构建期变量。
 
 构建期变量：
 
@@ -99,13 +100,15 @@ http://localhost:5173
 │   ├── actions/
 │   ├── ISSUE_TEMPLATE/
 │   ├── CODEOWNERS
-│   ├── PULL_REQUEST_TEMPLATE.md
 │   ├── dependabot.yml
 │   └── workflows/
 │       ├── ci.yml
+│       ├── dependency-audit.yml
+│       ├── deploy-development.yml
 │       ├── deploy-production.yml
+│       ├── e2e.yml
 │       ├── release.yml
-│       └── release-please.yml
+│       └── security.yml
 ├── .husky/
 ├── deploy/
 │   ├── development/
@@ -203,18 +206,18 @@ pnpm test:e2e
 
 ## PR 检查
 
-PR 检查由 `.github/workflows/ci.yml` 维护，并按顺序执行：
+PR 检查由 `.github/workflows/ci.yml` 和 `.github/workflows/security.yml` 维护。建议在 GitHub Branch Protection 中要求以下检查通过后才允许合并：
 
-1. `PR Checks / 01 Branch name`
-2. `PR Checks / 02 Commit messages`
-3. `PR Checks / 03 Basic checks`
-4. `PR Checks / 04 Unit tests and coverage`
-5. `PR Checks / 05 Build`，包含 bundle size 检查
-6. `PR Checks / 06 E2E`
-7. `PR Checks / 07 Secret scan`
-8. `PR Checks / 08 Docker build check`
+1. `CI / Policy`
+2. `CI / Quality`
+3. `CI / Unit Tests`
+4. `CI / Build`
+5. `CI / Docker Build Check`
+6. `Security / Secret Scan`
 
-单元测试覆盖率会上传为 GitHub Actions artifact，并在同仓库 PR 中创建或更新覆盖率评论。构建阶段会上传 `dist/stats.html`，用于查看 bundle 组成。
+`CI / Policy` 会检查分支名和 PR title 是否符合 Conventional Commits。单元测试覆盖率会上传为 GitHub Actions artifact。构建阶段会上传 `dist/stats.html`，用于查看 bundle 组成。
+
+完整 E2E 由 `.github/workflows/e2e.yml` 负责，在 `master` 推送、工作日定时和手动触发时运行，不作为 PR 必需检查。依赖审计由 `.github/workflows/dependency-audit.yml` 负责，默认按月或手动触发，避免每周依赖检查带来过多 PR 噪音。
 
 ## 构建与部署
 
@@ -239,7 +242,7 @@ docker run --rm -p 8080:80 \
   blog-frontend
 ```
 
-PR 阶段只验证 Dockerfile 是否能构建，不推送镜像。PR 合并到 `master` 后，`Deploy Development` workflow 会在 `PR Checks` 的 `master` push 检查成功后自动执行：
+PR 阶段只验证 Dockerfile 是否能构建，不推送镜像。PR 合并到 `master` 后，`Deploy Development` workflow 会在 `CI` 的 `master` push 检查成功后自动执行：
 
 1. 构建并推送 GHCR 镜像
 2. 使用 Trivy 扫描镜像
@@ -299,11 +302,11 @@ development GitHub Environment 需要配置：
 | var    | `SSH_PORT`          | `22`                                       |
 | var    | `SSH_USER`          | `root`，后续建议改为最小权限 `deploy` 用户 |
 
-`Deploy Development` workflow 会在部署前校验以上 development 配置。不要在 development Environment 中新增 `VITE_*` 或 production 专用变量；`APP_URL` 不应再使用 `http://47.239.187.146:8081`。`APP_ENV` 由 workflow 自动设置为 `development`。production 本轮暂不配置，后续启用时应单独整理并开启 required reviewers。
+`Deploy Development` workflow 会在部署前校验必需的 development 配置是否存在。不要在 development Environment 中新增 `VITE_*` 或 production 专用变量；`APP_URL` 不应再使用 `http://47.239.187.146:8081`。`APP_ENV` 由 workflow 自动设置为 `development`。production 由手动触发的 `Deploy Production` workflow 处理，建议在 GitHub Environment 中开启 required reviewers。
 
 ## 发布说明
 
-`.github/workflows/release-please.yml` 会在 `master` 推送后根据 Conventional Commits 创建或更新 release PR。合并该 PR 后会生成 changelog、tag 和 GitHub Release。
+`.github/workflows/release.yml` 会在 `master` 推送后根据 Conventional Commits 创建或更新 release PR。合并该 PR 后会生成 changelog、tag 和 GitHub Release。
 
 ## API 层
 

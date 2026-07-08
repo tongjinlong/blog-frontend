@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import SpacePreviewPanel from '../../src/features/home/SpacePreviewPanel.vue'
+import SpaceScene from '../../src/features/space/SpaceScene.vue'
 
 const threeMock = vi.hoisted(() => {
   const createVector = () => ({
@@ -53,6 +53,7 @@ const threeMock = vi.hoisted(() => {
     color?: string
     emissive?: string
     emissiveIntensity: number
+    flatShading?: boolean
     roughness?: number
 
     constructor(options: Record<string, unknown> = {}) {
@@ -60,7 +61,32 @@ const threeMock = vi.hoisted(() => {
       this.color = options.color as string
       this.emissive = options.emissive as string
       this.emissiveIntensity = Number(options.emissiveIntensity ?? 0)
+      this.flatShading = options.flatShading as boolean
       this.roughness = options.roughness as number
+    }
+  }
+
+  class MeshBasicMaterial extends Material {
+    color?: string
+    opacity: number
+    toneMapped?: boolean
+    transparent?: boolean
+
+    constructor(options: Record<string, unknown> = {}) {
+      super()
+      this.color = options.color as string
+      this.opacity = Number(options.opacity ?? 1)
+      this.toneMapped = options.toneMapped as boolean
+      this.transparent = options.transparent as boolean
+    }
+  }
+
+  class ShaderMaterial extends Material {
+    uniforms: Record<string, { value: unknown }>
+
+    constructor(options: Record<string, unknown> = {}) {
+      super()
+      this.uniforms = (options.uniforms as Record<string, { value: unknown }>) ?? {}
     }
   }
 
@@ -169,6 +195,7 @@ const threeMock = vi.hoisted(() => {
 
   return {
     ACESFilmicToneMapping: 'aces',
+    AdditiveBlending: 'additive',
     BoxGeometry: geometryFactory(),
     CircleGeometry: geometryFactory(),
     Color: class {
@@ -196,12 +223,17 @@ const threeMock = vi.hoisted(() => {
     Group,
     HemisphereLight,
     Mesh,
+    MeshBasicMaterial,
     MeshStandardMaterial,
     PCFShadowMap: 'pcf',
+    PCFSoftShadowMap: 'pcf-soft',
     PerspectiveCamera,
+    PlaneGeometry: geometryFactory(),
     PointLight,
     Scene,
+    ShaderMaterial,
     SphereGeometry: geometryFactory(),
+    SRGBColorSpace: 'srgb',
     WebGLRenderer
   }
 })
@@ -224,7 +256,7 @@ class ResizeObserverStub {
   unobserve = vi.fn()
 }
 
-describe('SpacePreviewPanel', () => {
+describe('SpaceScene', () => {
   let getContextSpy: ReturnType<typeof vi.spyOn> | undefined
   let originalResizeObserver: typeof globalThis.ResizeObserver
   let requestAnimationFrameSpy: ReturnType<typeof vi.spyOn>
@@ -247,17 +279,17 @@ describe('SpacePreviewPanel', () => {
   it('renders a static fallback when WebGL is unavailable', () => {
     getContextSpy = vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
 
-    render(SpacePreviewPanel)
+    render(SpaceScene)
 
     expect(screen.getByLabelText('3D 空间预览')).toHaveAttribute('data-preview', 'static')
   })
 
-  it('builds and disposes the animated preview when WebGL is available', () => {
+  it('builds and disposes the overview scene when WebGL is available', () => {
     getContextSpy = vi
       .spyOn(HTMLCanvasElement.prototype, 'getContext')
       .mockReturnValue({} as RenderingContext)
 
-    const { unmount } = render(SpacePreviewPanel)
+    const { unmount } = render(SpaceScene)
 
     expect(screen.getByLabelText('3D 空间预览')).not.toHaveAttribute('data-preview')
     expect(requestAnimationFrameSpy).toHaveBeenCalled()
@@ -265,5 +297,19 @@ describe('SpacePreviewPanel', () => {
     unmount()
 
     expect(window.cancelAnimationFrame).toHaveBeenCalledWith(1)
+  })
+
+  it('uses the immersive label for the world scene', () => {
+    getContextSpy = vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue({} as RenderingContext)
+
+    render(SpaceScene, {
+      props: {
+        viewMode: 'immersive'
+      }
+    })
+
+    expect(screen.getByLabelText('3D 空间沉浸场景')).not.toHaveAttribute('data-preview')
   })
 })
