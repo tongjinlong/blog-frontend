@@ -11,7 +11,7 @@ export const router = createRouter({
     {
       path: '/world',
       name: 'world',
-      component: () => import('@/features/world/WorldPlaceholderView.vue')
+      component: () => import('@/features/world/WorldView.vue')
     },
     {
       path: '/docs',

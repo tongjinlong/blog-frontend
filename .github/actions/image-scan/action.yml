@@ -1,0 +1,37 @@
+name: Image scan
+description: Scan a container image with Trivy.
+
+inputs:
+  image-ref:
+    description: Image reference to scan.
+    required: true
+  registry:
+    description: Container registry host.
+    required: false
+    default: ghcr.io
+  registry-username:
+    description: Registry username.
+    required: true
+  registry-password:
+    description: Registry password or token.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Login to registry
+      uses: docker/login-action@v4
+      with:
+        registry: ${{ inputs.registry }}
+        username: ${{ inputs.registry-username }}
+        password: ${{ inputs.registry-password }}
+
+    - name: Scan image
+      uses: aquasecurity/trivy-action@v0.36.0
+      with:
+        image-ref: ${{ inputs.image-ref }}
+        format: table
+        exit-code: '1'
+        ignore-unfixed: true
+        vuln-type: os,library
+        severity: HIGH,CRITICAL

@@ -1,0 +1,145 @@
+name: Remote compose deploy
+description: Deploy an image on a remote host with Docker Compose.
+
+inputs:
+  app-env:
+    description: Runtime APP_ENV.
+    required: true
+  app-name:
+    description: Runtime APP_NAME.
+    required: false
+    default: Blog Frontend
+  api-base-url:
+    description: Runtime API_BASE_URL.
+    required: false
+    default: /api
+  compose-service:
+    description: Docker Compose service to update.
+    required: true
+  deploy-path:
+    description: Remote directory containing the compose project.
+    required: true
+  ghcr-token:
+    description: Token used by the remote host to pull from GHCR.
+    required: true
+  ghcr-username:
+    description: Username used by the remote host to pull from GHCR.
+    required: true
+  image-ref:
+    description: Image reference to deploy.
+    required: true
+  nginx-server-name:
+    description: Runtime NGINX_SERVER_NAME.
+    required: false
+    default: ''
+  sentry-dsn:
+    description: Runtime SENTRY_DSN.
+    required: false
+    default: ''
+  sentry-release:
+    description: Runtime SENTRY_RELEASE.
+    required: false
+    default: ''
+  ssh-host:
+    description: Remote SSH host.
+    required: true
+  ssh-port:
+    description: Remote SSH port.
+    required: false
+    default: '22'
+  ssh-private-key:
+    description: Private key used to connect to the remote host.
+    required: true
+  ssh-user:
+    description: Remote SSH user.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Validate deployment inputs
+      shell: bash
+      env:
+        COMPOSE_SERVICE: ${{ inputs.compose-service }}
+        DEPLOY_PATH: ${{ inputs.deploy-path }}
+        GHCR_TOKEN: ${{ inputs.ghcr-token }}
+        GHCR_USERNAME: ${{ inputs.ghcr-username }}
+        IMAGE_REF: ${{ inputs.image-ref }}
+        SSH_HOST: ${{ inputs.ssh-host }}
+        SSH_PRIVATE_KEY: ${{ inputs.ssh-private-key }}
+        SSH_USER: ${{ inputs.ssh-user }}
+      run: |
+        failed=0
+
+        check_required() {
+          name="$1"
+          value="$2"
+
+          if [ -z "${value}" ]; then
+            echo "::error::${name} is required."
+            failed=1
+          fi
+        }
+
+        check_required COMPOSE_SERVICE "${COMPOSE_SERVICE}"
+        check_required DEPLOY_PATH "${DEPLOY_PATH}"
+        check_required GHCR_TOKEN "${GHCR_TOKEN}"
+        check_required GHCR_USERNAME "${GHCR_USERNAME}"
+        check_required IMAGE_REF "${IMAGE_REF}"
+        check_required SSH_HOST "${SSH_HOST}"
+        check_required SSH_PRIVATE_KEY "${SSH_PRIVATE_KEY}"
+        check_required SSH_USER "${SSH_USER}"
+
+        exit "${failed}"
+
+    - name: Configure SSH
+      shell: bash
+      env:
+        SSH_HOST: ${{ inputs.ssh-host }}
+        SSH_PORT: ${{ inputs.ssh-port }}
+        SSH_PRIVATE_KEY: ${{ inputs.ssh-private-key }}
+      run: |
+        mkdir -p ~/.ssh
+        printf '%s\n' "${SSH_PRIVATE_KEY}" > ~/.ssh/deploy_key
+        chmod 600 ~/.ssh/deploy_key
+        ssh-keyscan -p "${SSH_PORT:-22}" "${SSH_HOST}" >> ~/.ssh/known_hosts
+
+    - name: Deploy with Docker Compose
+      shell: bash
+      env:
+        APP_ENV: ${{ inputs.app-env }}
+        APP_NAME: ${{ inputs.app-name }}
+        API_BASE_URL: ${{ inputs.api-base-url }}
+        COMPOSE_SERVICE: ${{ inputs.compose-service }}
+        DEPLOY_PATH: ${{ inputs.deploy-path }}
+        GHCR_TOKEN: ${{ inputs.ghcr-token }}
+        GHCR_USERNAME: ${{ inputs.ghcr-username }}
+        IMAGE_REF: ${{ inputs.image-ref }}
+        NGINX_SERVER_NAME: ${{ inputs.nginx-server-name }}
+        SENTRY_DSN: ${{ inputs.sentry-dsn }}
+        SENTRY_RELEASE: ${{ inputs.sentry-release }}
+        SSH_HOST: ${{ inputs.ssh-host }}
+        SSH_PORT: ${{ inputs.ssh-port }}
+        SSH_USER: ${{ inputs.ssh-user }}
+      run: |
+        remote_env=$(
+          printf "DEPLOY_PATH=%q COMPOSE_SERVICE=%q IMAGE_REF=%q APP_NAME=%q APP_ENV=%q API_BASE_URL=%q NGINX_SERVER_NAME=%q SENTRY_DSN=%q SENTRY_RELEASE=%q" \
+            "${DEPLOY_PATH}" "${COMPOSE_SERVICE}" "${IMAGE_REF}" "${APP_NAME}" "${APP_ENV}" "${API_BASE_URL}" "${NGINX_SERVER_NAME}" "${SENTRY_DSN}" "${SENTRY_RELEASE}"
+        )
+        ghcr_username_arg=$(printf '%q' "${GHCR_USERNAME}")
+
+        printf '%s' "${GHCR_TOKEN}" | ssh -i ~/.ssh/deploy_key -p "${SSH_PORT:-22}" "${SSH_USER}@${SSH_HOST}" \
+          "docker login ghcr.io -u ${ghcr_username_arg} --password-stdin"
+
+        ssh -i ~/.ssh/deploy_key -p "${SSH_PORT:-22}" "${SSH_USER}@${SSH_HOST}" "${remote_env} bash -s" <<'EOF'
+        set -euo pipefail
+
+        cd "${DEPLOY_PATH}"
+
+        export IMAGE_REF APP_NAME APP_ENV API_BASE_URL NGINX_SERVER_NAME SENTRY_DSN SENTRY_RELEASE
+
+        docker compose pull "${COMPOSE_SERVICE}"
+        docker compose up -d "${COMPOSE_SERVICE}"
+        docker compose ps "${COMPOSE_SERVICE}"
+        docker image prune -f
+        EOF

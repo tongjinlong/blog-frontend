@@ -1,0 +1,142 @@
+name: Docker image
+description: Build and optionally push the application Docker image.
+
+inputs:
+  registry:
+    description: Container registry host.
+    required: false
+    default: ghcr.io
+  image-name:
+    description: Repository image name.
+    required: true
+  image-tag:
+    description: Immutable image tag.
+    required: true
+  latest-tag:
+    description: Moving tag to update together with the immutable tag.
+    required: false
+    default: master
+  registry-username:
+    description: Registry username.
+    required: true
+  registry-password:
+    description: Registry password or token.
+    required: true
+  context:
+    description: Docker build context.
+    required: false
+    default: .
+  file:
+    description: Dockerfile path.
+    required: false
+    default: Dockerfile
+  push:
+    description: Whether to push the image.
+    required: false
+    default: 'true'
+  vite-app-name:
+    description: Build-time VITE_APP_NAME.
+    required: false
+    default: Blog Frontend
+  vite-app-env:
+    description: Build-time VITE_APP_ENV.
+    required: false
+    default: production
+  vite-api-base-url:
+    description: Build-time VITE_API_BASE_URL.
+    required: false
+    default: /api
+  vite-sentry-dsn:
+    description: Build-time VITE_SENTRY_DSN.
+    required: false
+    default: ''
+  vite-sentry-release:
+    description: Build-time VITE_SENTRY_RELEASE.
+    required: false
+    default: ''
+  vite-sourcemap:
+    description: Build-time VITE_SOURCEMAP.
+    required: false
+    default: 'false'
+  sentry-org:
+    description: Sentry organization for sourcemap upload.
+    required: false
+    default: ''
+  sentry-project:
+    description: Sentry project for sourcemap upload.
+    required: false
+    default: ''
+  sentry-release:
+    description: Sentry release name.
+    required: false
+    default: ''
+  sentry-auth-token:
+    description: Sentry auth token passed as a Docker build secret.
+    required: false
+    default: ''
+
+outputs:
+  image-ref:
+    description: Immutable image reference.
+    value: ${{ steps.meta.outputs.image-ref }}
+  latest-ref:
+    description: Moving image reference.
+    value: ${{ steps.meta.outputs.latest-ref }}
+  digest:
+    description: Built image digest.
+    value: ${{ steps.build.outputs.digest }}
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Docker Buildx
+      uses: docker/setup-buildx-action@v4
+
+    - name: Prepare image metadata
+      id: meta
+      shell: bash
+      env:
+        REGISTRY: ${{ inputs.registry }}
+        IMAGE_NAME: ${{ inputs.image-name }}
+        IMAGE_TAG: ${{ inputs.image-tag }}
+        LATEST_TAG: ${{ inputs.latest-tag }}
+      run: |
+        image_name="${IMAGE_NAME,,}"
+        image_ref="${REGISTRY}/${image_name}:${IMAGE_TAG}"
+        latest_ref="${REGISTRY}/${image_name}:${LATEST_TAG}"
+
+        {
+          echo "image-ref=${image_ref}"
+          echo "latest-ref=${latest_ref}"
+        } >> "${GITHUB_OUTPUT}"
+
+    - name: Login to registry
+      uses: docker/login-action@v4
+      with:
+        registry: ${{ inputs.registry }}
+        username: ${{ inputs.registry-username }}
+        password: ${{ inputs.registry-password }}
+
+    - name: Build image
+      id: build
+      uses: docker/build-push-action@v7
+      with:
+        context: ${{ inputs.context }}
+        file: ${{ inputs.file }}
+        push: ${{ inputs.push }}
+        pull: true
+        tags: |
+          ${{ steps.meta.outputs.image-ref }}
+          ${{ steps.meta.outputs.latest-ref }}
+        build-args: |
+          VITE_APP_NAME=${{ inputs.vite-app-name }}
+          VITE_APP_ENV=${{ inputs.vite-app-env }}
+          VITE_API_BASE_URL=${{ inputs.vite-api-base-url }}
+          VITE_SENTRY_DSN=${{ inputs.vite-sentry-dsn }}
+          VITE_SENTRY_RELEASE=${{ inputs.vite-sentry-release }}
+          VITE_SOURCEMAP=${{ inputs.vite-sourcemap }}
+          SENTRY_ORG=${{ inputs.sentry-org }}
+          SENTRY_PROJECT=${{ inputs.sentry-project }}
+          SENTRY_RELEASE=${{ inputs.sentry-release }}
+        secrets: |
+          sentry_auth_token=${{ inputs.sentry-auth-token }}
