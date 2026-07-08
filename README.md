@@ -106,6 +106,7 @@ http://localhost:5173
 │       ├── ci.yml
 │       ├── deploy-development.yml
 │       ├── deploy-production.yml
+│       ├── e2e.yml
 │       ├── release.yml
 │       └── security.yml
 ├── .husky/
@@ -211,11 +212,12 @@ PR 检查由 `.github/workflows/ci.yml` 和 `.github/workflows/security.yml` 维
 2. `CI / Quality`
 3. `CI / Unit Tests`
 4. `CI / Build`
-5. `CI / E2E`
-6. `CI / Docker Build Check`
-7. `Security / Secret Scan`
+5. `CI / Docker Build Check`
+6. `Security / Secret Scan`
 
-单元测试覆盖率会上传为 GitHub Actions artifact。构建阶段会上传 `dist/stats.html`，用于查看 bundle 组成。依赖审计由 `Security / Dependency Audit` 负责，默认按月或手动触发，避免每周依赖检查带来过多 PR 噪音。
+`CI / Policy` 会检查分支名和 PR title 是否符合 Conventional Commits。单元测试覆盖率会上传为 GitHub Actions artifact。构建阶段会上传 `dist/stats.html`，用于查看 bundle 组成。
+
+完整 E2E 由 `.github/workflows/e2e.yml` 负责，在 `master` 推送、工作日定时和手动触发时运行，不作为 PR 必需检查。依赖审计由 `Security / Dependency Audit` 负责，默认按月或手动触发，避免每周依赖检查带来过多 PR 噪音。
 
 ## 构建与部署
 
