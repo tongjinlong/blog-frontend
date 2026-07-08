@@ -75,36 +75,61 @@ jobs:
 
   deploy-development:
     name: Deploy Development
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, blog-development]
     needs:
       - docker-image
       - image-scan
     environment: development
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - name: Login to GHCR
+        uses: docker/login-action@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Deploy with Docker Compose
-        uses: ./.github/actions/remote-compose-deploy
-        with:
-          app-env: development
-          app-name: ${{ vars.APP_NAME || 'Blog Frontend' }}
-          api-base-url: ${{ vars.API_BASE_URL || '/api' }}
-          compose-service: ${{ vars.COMPOSE_SERVICE }}
-          deploy-path: ${{ vars.DEPLOY_PATH }}
-          ghcr-token: ${{ secrets.GHCR_TOKEN }}
-          ghcr-username: ${{ vars.GHCR_USERNAME || github.actor }}
-          image-ref: ${{ needs.docker-image.outputs.image-ref }}
-          nginx-server-name: ${{ vars.NGINX_SERVER_NAME }}
-          sentry-dsn: ${{ secrets.SENTRY_DSN }}
-          sentry-release: ${{ github.event.workflow_run.head_sha }}
-          ssh-host: ${{ vars.SSH_HOST }}
-          ssh-port: ${{ vars.SSH_PORT || '22' }}
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-          ssh-user: ${{ vars.SSH_USER }}
+        shell: bash
+        env:
+          APP_ENV: development
+          APP_NAME: ${{ vars.APP_NAME || 'Blog Frontend' }}
+          API_BASE_URL: ${{ vars.API_BASE_URL || '/api' }}
+          COMPOSE_SERVICE: ${{ vars.COMPOSE_SERVICE }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+          IMAGE_REF: ${{ needs.docker-image.outputs.image-ref }}
+          NGINX_SERVER_NAME: ${{ vars.NGINX_SERVER_NAME }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          SENTRY_RELEASE: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          failed=0
+
+          check_required() {
+            name="$1"
+            value="$2"
+
+            if [ -z "${value}" ]; then
+              echo "::error::${name} is required."
+              failed=1
+            fi
+          }
+
+          check_required COMPOSE_SERVICE "${COMPOSE_SERVICE}"
+          check_required DEPLOY_PATH "${DEPLOY_PATH}"
+          check_required IMAGE_REF "${IMAGE_REF}"
+
+          if [ "${failed}" -ne 0 ]; then
+            exit "${failed}"
+          fi
+
+          cd "${DEPLOY_PATH}"
+
+          export IMAGE_REF APP_NAME APP_ENV API_BASE_URL NGINX_SERVER_NAME SENTRY_DSN SENTRY_RELEASE
+
+          docker compose pull "${COMPOSE_SERVICE}"
+          docker compose up -d "${COMPOSE_SERVICE}"
+          docker compose ps "${COMPOSE_SERVICE}"
+          docker image prune -f
 
       - name: Smoke test
         shell: bash

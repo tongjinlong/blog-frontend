@@ -246,7 +246,7 @@ PR 阶段只验证 Dockerfile 是否能构建，不推送镜像。PR 合并到 `
 
 1. 构建并推送 GHCR 镜像
 2. 使用 Trivy 扫描镜像
-3. 通过 SSH + docker compose 自动部署 `development`
+3. 通过 self-hosted runner 在服务器本机执行 Docker Compose 部署 `development`
 4. 对 `development` 执行 smoke test
 5. 上传 development release metadata，记录 source SHA、image 和 digest
 
@@ -286,23 +286,17 @@ sudo certbot --nginx -d tongjinlong.xyz
 
 development GitHub Environment 需要配置：
 
-| 类型   | 名称                | 说明                                       |
-| ------ | ------------------- | ------------------------------------------ |
-| secret | `SSH_PRIVATE_KEY`   | 连接服务器的 SSH 私钥                      |
-| secret | `GHCR_TOKEN`        | 服务器拉取 GHCR 私有镜像的 token           |
-| secret | `SENTRY_DSN`        | Runtime Sentry DSN，可为空                 |
-| var    | `APP_URL`           | `https://tongjinlong.xyz`                  |
-| var    | `NGINX_SERVER_NAME` | `tongjinlong.xyz`                          |
-| var    | `API_BASE_URL`      | `/api`                                     |
-| var    | `APP_NAME`          | `Blog Frontend`                            |
-| var    | `COMPOSE_SERVICE`   | `blog-frontend`                            |
-| var    | `DEPLOY_PATH`       | `/opt/blog-frontend-dev`                   |
-| var    | `GHCR_USERNAME`     | `tongjinlong`                              |
-| var    | `SSH_HOST`          | `47.239.187.146`                           |
-| var    | `SSH_PORT`          | `22`                                       |
-| var    | `SSH_USER`          | `root`，后续建议改为最小权限 `deploy` 用户 |
+| 类型   | 名称                | 说明                       |
+| ------ | ------------------- | -------------------------- |
+| secret | `SENTRY_DSN`        | Runtime Sentry DSN，可为空 |
+| var    | `APP_URL`           | `https://tongjinlong.xyz`  |
+| var    | `NGINX_SERVER_NAME` | `tongjinlong.xyz`          |
+| var    | `API_BASE_URL`      | `/api`                     |
+| var    | `APP_NAME`          | `Blog Frontend`            |
+| var    | `COMPOSE_SERVICE`   | `blog-frontend`            |
+| var    | `DEPLOY_PATH`       | `/opt/blog-frontend-dev`   |
 
-`Deploy Development` workflow 会在部署前校验必需的 development 配置是否存在。不要在 development Environment 中新增 `VITE_*` 或 production 专用变量；`APP_URL` 不应再使用 `http://47.239.187.146:8081`。`APP_ENV` 由 workflow 自动设置为 `development`。production 由手动触发的 `Deploy Production` workflow 处理，建议在 GitHub Environment 中开启 required reviewers。
+`Deploy Development` workflow 的部署 job 会派发到带有 `blog-development` label 的 self-hosted runner，并在服务器本机执行 Docker Compose。部署前会校验必需的 development 配置是否存在。不要在 development Environment 中新增 `VITE_*` 或 production 专用变量；`APP_URL` 不应再使用 `http://47.239.187.146:8081`。`APP_ENV` 由 workflow 自动设置为 `development`。production 由手动触发的 `Deploy Production` workflow 处理，建议在 GitHub Environment 中开启 required reviewers。
 
 ## 发布说明
 
